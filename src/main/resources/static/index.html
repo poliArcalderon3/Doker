@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registro | Sistema de Pedidos</title>
+    <link rel="stylesheet" href="/css/estilos.css">
+</head>
+<body>
+
+<header class="barra">
+    <div class="barra-contenido">
+        <div class="marca">
+            <div class="sello">&#9993;</div>
+            <div>
+                <h1>Sistema de Pedidos</h1>
+                <span>Spring Boot + Hibernate + MySQL &middot; Arquitectura en capas &middot; Docker</span>
+            </div>
+        </div>
+        <nav class="menu">
+            <a href="/index.html" class="activo">Registro de datos</a>
+            <a href="/consulta.html">Consultar base de datos</a>
+        </nav>
+    </div>
+</header>
+
+<main>
+    <div class="nota">
+        Los formularios envian los datos al contenedor de la aplicacion
+        (<code class="ruta">POST /api/clientes</code> y <code class="ruta">POST /api/pedidos</code>).
+        La capa de negocio los valida y la capa de persistencia los guarda, mediante Hibernate,
+        en el contenedor de MySQL. Para ver lo almacenado, abra
+        <strong>Consultar base de datos</strong>.
+    </div>
+
+    <div class="rejilla">
+
+        <!-- =============== Formulario de cliente =============== -->
+        <section class="panel">
+            <header>
+                <h2>Registrar cliente</h2>
+                <span class="marca-api">tabla cliente</span>
+            </header>
+            <div class="cuerpo">
+                <form id="formCliente">
+                    <div class="campo">
+                        <label for="cNombre">Nombre completo</label>
+                        <input type="text" id="cNombre" required maxlength="120"
+                               placeholder="Ej: Laura Mendoza">
+                    </div>
+                    <div class="campo">
+                        <label for="cEmail">Correo electronico</label>
+                        <input type="email" id="cEmail" required maxlength="150"
+                               placeholder="Ej: laura@correo.com">
+                    </div>
+                    <div class="par">
+                        <div class="campo">
+                            <label for="cDocumento">Documento</label>
+                            <input type="text" id="cDocumento" required maxlength="12"
+                                   placeholder="1012345678">
+                        </div>
+                        <div class="campo">
+                            <label for="cFechaNac">Fecha de nacimiento</label>
+                            <input type="date" id="cFechaNac">
+                        </div>
+                    </div>
+                    <div class="campo">
+                        <label for="cSaldo">Saldo a favor</label>
+                        <input type="number" id="cSaldo" step="0.01" min="0" value="0">
+                    </div>
+                    <div class="casilla">
+                        <input type="checkbox" id="cActivo" checked>
+                        <label for="cActivo"
+                               style="margin:0;text-transform:none;letter-spacing:0;font-weight:500;">
+                            Cliente activo
+                        </label>
+                    </div>
+                    <button type="submit" class="b-principal">Guardar cliente</button>
+                    <button type="reset" class="b-neutro">Limpiar</button>
+                </form>
+                <div id="msgCliente" class="mensaje"></div>
+            </div>
+        </section>
+
+        <!-- =============== Formulario de pedido =============== -->
+        <section class="panel">
+            <header>
+                <h2>Registrar pedido</h2>
+                <span class="marca-api">tabla pedido</span>
+            </header>
+            <div class="cuerpo">
+                <form id="formPedido">
+                    <div class="campo">
+                        <label for="pCliente">Cliente (llave foranea)</label>
+                        <select id="pCliente" required>
+                            <option value="">Cargando clientes...</option>
+                        </select>
+                    </div>
+                    <div class="campo">
+                        <label for="pDescripcion">Descripcion del pedido</label>
+                        <input type="text" id="pDescripcion" required maxlength="200"
+                               placeholder="Ej: Teclado mecanico RGB">
+                    </div>
+                    <div class="par">
+                        <div class="campo">
+                            <label for="pCantidad">Cantidad</label>
+                            <input type="number" id="pCantidad" min="1" value="1" required>
+                        </div>
+                        <div class="campo">
+                            <label for="pValor">Valor total</label>
+                            <input type="number" id="pValor" step="0.01" min="0" value="0" required>
+                        </div>
+                    </div>
+                    <div class="campo">
+                        <label for="pFecha">Fecha y hora del pedido</label>
+                        <input type="datetime-local" id="pFecha">
+                    </div>
+                    <div class="casilla">
+                        <input type="checkbox" id="pEntregado">
+                        <label for="pEntregado"
+                               style="margin:0;text-transform:none;letter-spacing:0;font-weight:500;">
+                            Pedido ya entregado
+                        </label>
+                    </div>
+                    <button type="submit" class="b-verde">Guardar pedido</button>
+                    <a href="/consulta.html" class="boton b-neutro">Ver lo guardado</a>
+                </form>
+                <div id="msgPedido" class="mensaje"></div>
+            </div>
+        </section>
+    </div>
+</main>
+
+<footer class="pie">
+    Contenerizacion de Aplicaciones de Software &middot; Unidad 2 &middot; Actividad Sumativa
+</footer>
+
+<script src="/js/control.js"></script>
+<script>
+    /** Llena el desplegable con los clientes que ya estan en la base de datos. */
+    async function cargarClientes() {
+        const lista = document.getElementById('pCliente');
+        try {
+            const clientes = await llamarApi('/api/clientes');
+            if (clientes.length === 0) {
+                lista.innerHTML = '<option value="">Registre primero un cliente</option>';
+                return;
+            }
+            lista.innerHTML = '<option value="">Seleccione un cliente...</option>' +
+                clientes.map(c =>
+                    '<option value="' + c.id + '"' + (c.activo ? '' : ' disabled') + '>'
+                    + '#' + c.id + ' - ' + limpiar(c.nombre)
+                    + (c.activo ? '' : ' (inactivo)') + '</option>').join('');
+        } catch (e) {
+            lista.innerHTML = '<option value="">Error: ' + limpiar(e.message) + '</option>';
+        }
+    }
+
+    // ---------- Alta de cliente ----------
+    document.getElementById('formCliente').addEventListener('submit', async (ev) => {
+        ev.preventDefault();
+        const cuerpo = {
+            nombre: document.getElementById('cNombre').value,
+            email: document.getElementById('cEmail').value,
+            documento: document.getElementById('cDocumento').value,
+            fechaNacimiento: document.getElementById('cFechaNac').value || null,
+            activo: document.getElementById('cActivo').checked,
+            saldo: parseFloat(document.getElementById('cSaldo').value || '0')
+        };
+        try {
+            const creado = await llamarApi('/api/clientes', {
+                method: 'POST', body: JSON.stringify(cuerpo)
+            });
+            mostrarMensaje('msgCliente',
+                'Cliente guardado en MySQL con id ' + creado.id + '.', 'ok');
+            ev.target.reset();
+            document.getElementById('cActivo').checked = true;
+            cargarClientes();
+        } catch (e) {
+            mostrarMensaje('msgCliente', e.message, 'error');
+        }
+    });
+
+    // ---------- Alta de pedido ----------
+    document.getElementById('formPedido').addEventListener('submit', async (ev) => {
+        ev.preventDefault();
+        const fecha = document.getElementById('pFecha').value;
+        const cuerpo = {
+            clienteId: parseInt(document.getElementById('pCliente').value, 10),
+            descripcion: document.getElementById('pDescripcion').value,
+            cantidad: parseInt(document.getElementById('pCantidad').value, 10),
+            valorTotal: parseFloat(document.getElementById('pValor').value || '0'),
+            fechaPedido: fecha ? (fecha.length === 16 ? fecha + ':00' : fecha) : null,
+            entregado: document.getElementById('pEntregado').checked
+        };
+        try {
+            const creado = await llamarApi('/api/pedidos', {
+                method: 'POST', body: JSON.stringify(cuerpo)
+            });
+            mostrarMensaje('msgPedido',
+                'Pedido guardado en MySQL con id ' + creado.id + '.', 'ok');
+            document.getElementById('pDescripcion').value = '';
+            document.getElementById('pCantidad').value = 1;
+            document.getElementById('pValor').value = 0;
+            document.getElementById('pEntregado').checked = false;
+        } catch (e) {
+            mostrarMensaje('msgPedido', e.message, 'error');
+        }
+    });
+
+    cargarClientes();
+</script>
+</body>
+</html>

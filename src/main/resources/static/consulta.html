@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Consulta | Sistema de Pedidos</title>
+    <link rel="stylesheet" href="/css/estilos.css">
+</head>
+<body>
+
+<header class="barra">
+    <div class="barra-contenido">
+        <div class="marca">
+            <div class="sello">&#128203;</div>
+            <div>
+                <h1>Contenido de la base de datos</h1>
+                <span>Lectura de las tablas cliente y pedido del contenedor MySQL</span>
+            </div>
+        </div>
+        <nav class="menu">
+            <a href="/index.html">Registro de datos</a>
+            <a href="/consulta.html" class="activo">Consultar base de datos</a>
+        </nav>
+    </div>
+</header>
+
+<main>
+    <div class="nota">
+        Los datos mostrados provienen de las tablas <code class="ruta">pedidosdb.cliente</code> y
+        <code class="ruta">pedidosdb.pedido</code>. La aplicacion las consulta con Hibernate a traves
+        de la capa de persistencia.
+        <button class="b-neutro b-chico" style="margin-left:.5rem" onclick="cargarTodo()">
+            Actualizar
+        </button>
+    </div>
+
+    <div class="tablero">
+        <div class="ficha">
+            <div class="cifra" id="fClientes">-</div>
+            <div class="rotulo">Clientes registrados</div>
+        </div>
+        <div class="ficha turquesa">
+            <div class="cifra" id="fPedidos">-</div>
+            <div class="rotulo">Pedidos registrados</div>
+        </div>
+        <div class="ficha verde">
+            <div class="cifra" id="fEntregados">-</div>
+            <div class="rotulo">Pedidos entregados</div>
+        </div>
+        <div class="ficha ambar">
+            <div class="cifra" id="fPendientes">-</div>
+            <div class="rotulo">Pedidos pendientes</div>
+        </div>
+        <div class="ficha">
+            <div class="cifra" id="fMonto" style="font-size:1.25rem">-</div>
+            <div class="rotulo">Valor acumulado</div>
+        </div>
+    </div>
+
+    <section class="panel" style="margin-bottom:1.5rem">
+        <header>
+            <h2>Tabla: cliente</h2>
+            <span class="marca-api">7 columnas &middot; entidad principal</span>
+        </header>
+        <div class="marco-tabla">
+            <table>
+                <thead>
+                <tr>
+                    <th>id</th>
+                    <th>nombre</th>
+                    <th>email</th>
+                    <th>documento</th>
+                    <th>fecha_nacimiento</th>
+                    <th>activo</th>
+                    <th>saldo</th>
+                    <th>pedidos</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody id="filasClientes">
+                <tr><td colspan="9" class="sin-datos">Cargando...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="panel">
+        <header>
+            <h2>Tabla: pedido</h2>
+            <span class="marca-api">7 columnas &middot; llave foranea cliente_id</span>
+        </header>
+        <div class="marco-tabla">
+            <table>
+                <thead>
+                <tr>
+                    <th>id</th>
+                    <th>cliente_id</th>
+                    <th>cliente</th>
+                    <th>descripcion</th>
+                    <th>cantidad</th>
+                    <th>valor_total</th>
+                    <th>fecha_pedido</th>
+                    <th>entregado</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody id="filasPedidos">
+                <tr><td colspan="9" class="sin-datos">Cargando...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <div id="msgConsulta" class="mensaje"></div>
+</main>
+
+<footer class="pie">
+    Contenerizacion de Aplicaciones de Software &middot; Unidad 2 &middot; Actividad Sumativa
+</footer>
+
+<script src="/js/control.js"></script>
+<script>
+    async function cargarTodo() {
+        try {
+            // Tres peticiones en paralelo a la API REST
+            const [clientes, pedidos, resumen] = await Promise.all([
+                llamarApi('/api/clientes'),
+                llamarApi('/api/pedidos'),
+                llamarApi('/api/pedidos/resumen')
+            ]);
+            pintarIndicadores(resumen);
+            pintarClientes(clientes);
+            pintarPedidos(pedidos);
+        } catch (e) {
+            mostrarMensaje('msgConsulta', e.message, 'error');
+        }
+    }
+
+    function pintarIndicadores(r) {
+        document.getElementById('fClientes').textContent   = r.totalClientes;
+        document.getElementById('fPedidos').textContent    = r.totalPedidos;
+        document.getElementById('fEntregados').textContent = r.pedidosEntregados;
+        document.getElementById('fPendientes').textContent = r.pedidosPendientes;
+        document.getElementById('fMonto').textContent      = aMoneda(r.valorAcumulado);
+    }
+
+    function pintarClientes(lista) {
+        const cuerpo = document.getElementById('filasClientes');
+        if (lista.length === 0) {
+            cuerpo.innerHTML =
+                '<tr><td colspan="9" class="sin-datos">No hay clientes en la base de datos.</td></tr>';
+            return;
+        }
+        cuerpo.innerHTML = lista.map(c => `
+            <tr>
+                <td><strong>${c.id}</strong></td>
+                <td>${limpiar(c.nombre)}</td>
+                <td>${limpiar(c.email)}</td>
+                <td>${limpiar(c.documento)}</td>
+                <td>${c.fechaNacimiento || '-'}</td>
+                <td>${sello(c.activo, 'Activo', 'Inactivo')}</td>
+                <td>${aMoneda(c.saldo)}</td>
+                <td>${c.totalPedidos !== null && c.totalPedidos !== undefined ? c.totalPedidos : 0}</td>
+                <td><button class="b-rojo b-chico" onclick="borrarCliente(${c.id})">Eliminar</button></td>
+            </tr>`).join('');
+    }
+
+    function pintarPedidos(lista) {
+        const cuerpo = document.getElementById('filasPedidos');
+        if (lista.length === 0) {
+            cuerpo.innerHTML =
+                '<tr><td colspan="9" class="sin-datos">No hay pedidos en la base de datos.</td></tr>';
+            return;
+        }
+        cuerpo.innerHTML = lista.map(p => `
+            <tr>
+                <td><strong>${p.id}</strong></td>
+                <td>${p.clienteId}</td>
+                <td>${limpiar(p.nombreCliente)}</td>
+                <td>${limpiar(p.descripcion)}</td>
+                <td>${p.cantidad}</td>
+                <td>${aMoneda(p.valorTotal)}</td>
+                <td>${aFechaHora(p.fechaPedido)}</td>
+                <td>${sello(p.entregado, 'Entregado', 'Pendiente')}</td>
+                <td>
+                    ${p.entregado ? '' :
+            '<button class="b-verde b-chico" onclick="entregar(' + p.id + ')">Entregar</button> '}
+                    <button class="b-rojo b-chico" onclick="borrarPedido(${p.id})">Eliminar</button>
+                </td>
+            </tr>`).join('');
+    }
+
+    async function entregar(id) {
+        try {
+            await llamarApi('/api/pedidos/' + id + '/entregar', { method: 'PATCH' });
+            mostrarMensaje('msgConsulta', 'Pedido ' + id + ' marcado como entregado.', 'ok');
+            cargarTodo();
+        } catch (e) {
+            mostrarMensaje('msgConsulta', e.message, 'error');
+        }
+    }
+
+    async function borrarPedido(id) {
+        if (!confirm('Eliminar el pedido ' + id + '?')) return;
+        try {
+            await llamarApi('/api/pedidos/' + id, { method: 'DELETE' });
+            mostrarMensaje('msgConsulta', 'Pedido ' + id + ' eliminado.', 'ok');
+            cargarTodo();
+        } catch (e) {
+            mostrarMensaje('msgConsulta', e.message, 'error');
+        }
+    }
+
+    async function borrarCliente(id) {
+        if (!confirm('Eliminar el cliente ' + id + ' y todos sus pedidos?')) return;
+        try {
+            await llamarApi('/api/clientes/' + id, { method: 'DELETE' });
+            mostrarMensaje('msgConsulta', 'Cliente ' + id + ' eliminado.', 'ok');
+            cargarTodo();
+        } catch (e) {
+            mostrarMensaje('msgConsulta', e.message, 'error');
+        }
+    }
+
+    cargarTodo();
+</script>
+</body>
+</html>
