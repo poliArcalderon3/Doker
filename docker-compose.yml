@@ -1,0 +1,73 @@
+# =====================================================================
+#  ORQUESTACION DE LOS DOS CONTENEDORES
+#
+#    mysql-pedidos : base de datos relacional  (imagen pedidos-mysql:1.0)
+#    app-pedidos   : servidor web Spring Boot  (imagen pedidos-app:1.0)
+#
+#  Levantar todo:  docker compose up -d --build
+# =====================================================================
+services:
+
+  # -------------------------------------------------------------------
+  #  Contenedor 1: base de datos
+  # -------------------------------------------------------------------
+  mysql:
+    build:
+      context: ./db
+    image: pedidos-mysql:1.0
+    container_name: mysql-pedidos
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: pedidosdb
+      MYSQL_USER: appuser
+      MYSQL_PASSWORD: apppass
+    ports:
+      # 3307 en el host para no chocar con el MySQL instalado en Windows
+      - "3307:3306"
+    volumes:
+      # El volumen conserva los datos aunque se borre el contenedor
+      - datos-mysql:/var/lib/mysql
+    networks:
+      - red-pedidos
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-prootpass"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # -------------------------------------------------------------------
+  #  Contenedor 2: servidor web
+  # -------------------------------------------------------------------
+  app:
+    build:
+      context: .
+    image: pedidos-app:1.0
+    container_name: app-pedidos
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        # No arranca hasta que el healthcheck de MySQL responda OK
+        condition: service_healthy
+    environment:
+      # El host es "mysql": el nombre del servicio, NO localhost
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/pedidosdb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=America/Bogota
+      SPRING_DATASOURCE_USERNAME: appuser
+      SPRING_DATASOURCE_PASSWORD: apppass
+      # Las tablas las crea el script 01-init.sql, no Hibernate
+      SPRING_JPA_DDL_AUTO: none
+      TZ: America/Bogota
+    ports:
+      - "8080:8080"
+    networks:
+      - red-pedidos
+
+volumes:
+  datos-mysql:
+    name: datos-mysql
+
+networks:
+  red-pedidos:
+    name: red-pedidos
+    driver: bridge
