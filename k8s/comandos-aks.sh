@@ -6,7 +6,7 @@
 # =====================================================================
 
 # ---------- PASO 0 (ANTES de grabar) · CLOUD SHELL ---------------------
-az account show -o table                 # debe decir "Azure for Students"
+az account show -o table                 # suscripcion de prueba gratuita (Free Trial / Azure subscription 1)
 
 az provider register --namespace Microsoft.ContainerService
 az provider register --namespace Microsoft.ContainerRegistry
@@ -20,11 +20,13 @@ export ACR=acrpedidosarc2026             # cambiar si dice que ya existe
 az group create -n $RG -l $LOC
 az acr create -g $RG -n $ACR --sku Basic
 
-# Cluster AKS nivel Free: 2 nodos pequenos, autoescalado hasta 3 (tarda 5-10 min)
+# Cluster AKS nivel Free: 2 nodos pequenos (2 vCPU c/u), autoescalado entre 1 y 2.
+# La prueba gratuita permite maximo 4 vCPU por region, por eso no se pasa de 2 nodos.
+# Tarda 5-10 min.
 az aks create -g $RG -n $AKS \
   --tier free \
   --node-count 2 --node-vm-size Standard_B2s \
-  --enable-cluster-autoscaler --min-count 2 --max-count 3 \
+  --enable-cluster-autoscaler --min-count 1 --max-count 2 \
   --attach-acr $ACR \
   --generate-ssh-keys
 
@@ -130,9 +132,10 @@ kubectl top pods -n pedidos
 az group delete -n $RG --yes --no-wait    # borra cluster, registro, discos e IP
 
 # ---------- Solucion de problemas --------------------------------------
-# "RequestDisallowedByAzure" o region no permitida: Azure for Students limita
-#   las regiones. Probar LOC=centralus, southcentralus o westus2.
-# Error de cuota de vCPU: usar --node-count 1 --min-count 1, o
+# Region no disponible o sin capacidad para B2s: probar LOC=centralus,
+#   southcentralus o westus2.
+# Error de cuota de vCPU (prueba gratuita = 4 vCPU por region):
+#   usar --node-count 1 --min-count 1 --max-count 1, o
 #   --node-vm-size Standard_B2s_v2 / Standard_D2s_v3.
 # Pods en ImagePullBackOff: az aks check-acr -g $RG -n $AKS --acr $ACR.azurecr.io
 # Pods en Pending: kubectl describe pod <nombre> -n pedidos  (falta CPU/memoria;
