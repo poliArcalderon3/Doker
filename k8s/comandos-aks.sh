@@ -25,7 +25,7 @@ az acr create -g $RG -n $ACR --sku Basic
 # Tarda 5-10 min.
 az aks create -g $RG -n $AKS \
   --tier free \
-  --node-count 2 --node-vm-size Standard_B2s \
+  --node-count 2 --node-vm-size Standard_D2als_v6 \
   --enable-cluster-autoscaler --min-count 1 --max-count 2 \
   --attach-acr $ACR \
   --generate-ssh-keys
@@ -132,11 +132,12 @@ kubectl top pods -n pedidos
 az group delete -n $RG --yes --no-wait    # borra cluster, registro, discos e IP
 
 # ---------- Solucion de problemas --------------------------------------
-# Region no disponible o sin capacidad para B2s: probar LOC=centralus,
+# "The VM size of ... is not allowed": usar un tamano de 2 vCPU de la lista
+#   que muestra el error (p. ej. Standard_D2as_v6), o probar LOC=centralus,
 #   southcentralus o westus2.
 # Error de cuota de vCPU (prueba gratuita = 4 vCPU por region):
 #   usar --node-count 1 --min-count 1 --max-count 1, o
-#   --node-vm-size Standard_B2s_v2 / Standard_D2s_v3.
+#   --node-vm-size Standard_D2as_v6.
 # Pods en ImagePullBackOff: az aks check-acr -g $RG -n $AKS --acr $ACR.azurecr.io
 # Pods en Pending: kubectl describe pod <nombre> -n pedidos  (falta CPU/memoria;
 #   el autoescalador del cluster agrega un nodo en unos minutos)
