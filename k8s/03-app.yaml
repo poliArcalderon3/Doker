@@ -1,0 +1,88 @@
+# =====================================================================
+#  CONTENEDOR 2: SERVIDOR WEB SPRING BOOT (imagen propia pedidos-app)
+#
+#    Deployment            : 3 replicas, actualizacion continua sin caidas
+#    Service LoadBalancer  : AKS crea un Azure Load Balancer con IP publica
+#                            (reemplaza el "8080:8080" de compose)
+# =====================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-pedidos
+  namespace: pedidos
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: app-pedidos
+  template:
+    metadata:
+      labels:
+        app: app-pedidos
+    spec:
+      containers:
+        - name: app
+          image: IMAGEN_APP
+          ports:
+            - containerPort: 8080
+          env:
+            # El host es "mysql": el nombre del Service, igual que en compose
+            - name: SPRING_DATASOURCE_URL
+              value: jdbc:mysql://mysql:3306/pedidosdb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=America/Bogota
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-credenciales
+                  key: MYSQL_USER
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-credenciales
+                  key: MYSQL_PASSWORD
+            - name: SPRING_JPA_DDL_AUTO
+              value: none
+            - name: TZ
+              value: America/Bogota
+            # Habilita /actuator/health/liveness y /actuator/health/readiness
+            - name: MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED
+              value: "true"
+          resources:
+            # Pequeno para caber en 2 nodos Standard_B2s (cuota de Azure for Students)
+            requests:
+              cpu: 250m
+              memory: 512Mi
+          # Reemplazan el HEALTHCHECK del Dockerfile (Kubernetes no lo usa)
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8080
+            periodSeconds: 5
+            failureThreshold: 40
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8080
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8080
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: app-pedidos
+  namespace: pedidos
+spec:
+  type: LoadBalancer
+  selector:
+    app: app-pedidos
+  ports:
+    - port: 80
+      targetPort: 8080

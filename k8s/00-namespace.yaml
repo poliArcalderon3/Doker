@@ -1,0 +1,7 @@
+# =====================================================================
+#  ESPACIO DE NOMBRES: aisla todos los recursos del gestor de pedidos
+# =====================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: pedidos

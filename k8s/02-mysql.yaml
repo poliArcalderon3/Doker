@@ -1,0 +1,79 @@
+# =====================================================================
+#  CONTENEDOR 1: BASE DE DATOS (imagen propia pedidos-mysql)
+#
+#    PersistentVolumeClaim : equivale al volumen "datos-mysql" de compose
+#                            (en AKS crea un Azure Disk administrado)
+#    Deployment            : 1 replica de MySQL
+#    Service ClusterIP     : nombre DNS "mysql", solo accesible dentro
+#                            del cluster (igual que la red red-pedidos)
+# =====================================================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: datos-mysql
+  namespace: pedidos
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql
+  namespace: pedidos
+spec:
+  replicas: 1
+  # Recreate: el disco solo se puede montar en un pod a la vez
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      containers:
+        - name: mysql
+          image: IMAGEN_MYSQL
+          ports:
+            - containerPort: 3306
+          envFrom:
+            - secretRef:
+                name: mysql-credenciales
+          volumeMounts:
+            - name: datos
+              mountPath: /var/lib/mysql
+              # El disco trae la carpeta lost+found; MySQL necesita un directorio vacio
+              subPath: mysql
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+          # Reemplaza el healthcheck de docker-compose
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "mysqladmin ping -h 127.0.0.1 -uroot -p$MYSQL_ROOT_PASSWORD"]
+            initialDelaySeconds: 20
+            periodSeconds: 10
+      volumes:
+        - name: datos
+          persistentVolumeClaim:
+            claimName: datos-mysql
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+  namespace: pedidos
+spec:
+  type: ClusterIP
+  selector:
+    app: mysql
+  ports:
+    - port: 3306
+      targetPort: 3306
